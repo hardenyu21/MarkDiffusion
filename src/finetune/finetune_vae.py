@@ -15,6 +15,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.utils import save_image
 from diffusers import AutoencoderKL
+from src.utils.util import parse_params
 
 def get_parser():
     parser = argparse.ArgumentParser()
@@ -72,19 +73,21 @@ class Trainer():
 
         self.params = params
 
-        self.vae = AutoencoderKL.from_pretrained("runwayml/stable-diffusion-v1-5") #vae is the same for different version of stable diffusion
+        self.vae = AutoencoderKL.from_pretrained("runwayml/stable-diffusion-v1-5") #vae is the same for different versions of stable diffusion
         for model_params in self.vae.parameters():
             model_params.requires_grad = False
         self.finetuned_vae = deepcopy(self.vae)
         for decoder_params in self.finetuned_vae.decoder.parameters():
             decoder_params.requires_grad = True
+        self.vae.eval()
+        self.msg_decoder = self._load_msg_decoder()
+        self._to(self.device)
         
         self.train_loader, self.val_loader = self._get_dataloader()
         self.optimizer = self._build_optimizer()
 
 
     def _seed_all(self) -> None:
-
         "Set the random seed for reproducibility"
 
         seed = self.params.seed
@@ -97,14 +100,33 @@ class Trainer():
     def _get_dataloader(self) -> tuple[DataLoader, DataLoader]:
         
         raise NotImplementedError
-    
-    def _build_optimizer(self) -> torch.optim.Optimizer:
 
-        raise NotImplementedError
+    def _build_optimizer(self):
+        
+        optim_params = parse_params(self.params.optimizer)
+        optimizer = optim_params.pop("name", None)
+        torch_optimizers = sorted(name for name in torch.optim.__dict__
+            if name[0].isupper() and not name.startswith("__")
+            and callable(torch.optim.__dict__[name]))
+        if hasattr(torch.optim, optimizer):
+            return getattr(torch.optim, optimizer)(self.finetuned_vae.decoder.parameters(), **optim_params)
+        raise ValueError(f'Unknown optimizer "{optimizer}", choose among {str(torch_optimizers)}')
+
+    def _load_msg_decoder(self) -> nn.Module:
+
+        ckpt_path = self.params.msg_decoder_path
+        return torch.jit.load(ckpt_path)
     
     def train_per_key(self):
 
         raise NotImplementedError
+    
+    def _to(self, device: str):
+
+        self.vae.to(device)
+        self.finetuned_vae.to(device)
+        self.msg_decoder.to(device)
+        
 
     def train(self) -> None:
         
