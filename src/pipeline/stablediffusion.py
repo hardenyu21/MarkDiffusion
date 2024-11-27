@@ -27,6 +27,11 @@ class WaterMarkedStableDiffusionPipeline():
             The watermarking method.
             - 'SS': 'Stable Signature'
             - 
+
+    Example:
+        >>> device = 'cuda' if torch.cuda.is_availabel() else 'cpu'
+        >>> WPipeline = WaterMarkedStableDiffusionPipeline("runwayml/stable-diffusion-v1-5").to(device)
+        >>> WPipeline.generate("A sunny beach")
     """
 
     transform= transforms.Compose([
@@ -36,14 +41,13 @@ class WaterMarkedStableDiffusionPipeline():
 
     def __init__(self,
                  model_card: str,
-                 method: str,
+                 method: str = 'SS',
                  ):
         
         self.pipeline = StableDiffusionPipeline.from_pretrained(model_card)
         self.vae = self.pipeline.vae
         self.unet = self.pipeline.unet
         self.text_encoder = self.pipeline.text_encoder
-        self.modules = [self.vae, self.unet, self.text_encoder]
 
         if method == 'SS':
                  
@@ -71,6 +75,7 @@ class WaterMarkedStableDiffusionPipeline():
     @property
     def device(self):
         return self.pipeline.device
+        
 
 def msg2str(msg):
     return "".join([('1' if el else '0') for el in msg])
@@ -104,8 +109,6 @@ if __name__ == '__main__':
     """
     import torch
     from diffusers import StableDiffusionPipeline
-
-    # 定义模型版本
     versions = [
         "CompVis/stable-diffusion-v1-2",
         "CompVis/stable-diffusion-v1-3",

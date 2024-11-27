@@ -1,0 +1,34 @@
+# Data parameters
+
+train_dir: "path/to/train_dir"  # Path to the training data directory
+val_dir: "path/to/val_dir"      # Path to the validation data directory
+num_training: 500               # number of images for training
+num_validation: 500             # number of images for validation
+
+# Model parameters
+msg_decoder_path: "models/hidden/dec_48b_whit.torchscript.pt"  # Path to the hidden decoder for the watermarking model
+num_bits: 48                 # Number of bits in the watermark
+redundancy: 1                # Number of times the watermark is repeated to increase robustness
+decoder_depth: 8             # Depth of the decoder in the watermarking model
+decoder_channels: 64         # Number of channels in the decoder of the watermarking model
+
+# Training parameters
+batch_size: 4                # Batch size for training
+img_size: 256                # Resize images to this size
+lambda_i: 0.2                # Weight of the image loss in the total loss
+lambda_w: 1.0                # Weight of the watermark loss in the total loss
+optimizer: "AdamW"           # Optimizer
+lr: 5e-4                     # Learning rate
+weight_decay: 5e-5           # Weight decay
+steps: 100                   # Number of steps to train the model for
+warmup_steps: 20             # Number of warmup steps for the optimizer
+
+# Logging and saving frequency parameters
+log_freq: 10                 # Logging frequency (in steps)
+save_img_freq: 1000          # Frequency of saving generated images (in steps)
+
+# Experiment parameters
+num_keys: 1                  # Number of fine-tuned checkpoints to generate
+output_dir: "output/finetune_vae"        # Output directory for logs and watermark keys
+model_dir: "ckpts/finetune_vae"          # Output directory for ckpts
+seed: 42                     # Random seed
