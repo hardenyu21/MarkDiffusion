@@ -16,7 +16,7 @@ from torchvision.utils import save_image
 from diffusers import AutoencoderKL
 from omegaconf import OmegaConf
 from utils.param_utils import parse_optim_params
-from utils.data_utils import get_dataloader, default_transform, img_transform, vqgan_transform
+from utils.data_utils import get_dataloader, default_transform, img_transform, vqgan_transform, list_to_torch
 
 class Trainer():
 
@@ -50,7 +50,7 @@ class Trainer():
         for decoder_params in self.finetuned_vae.decoder.parameters():
             decoder_params.requires_grad = True
         self.vae.eval()
-        self.msg_decoder = self._load_msg_decoder()
+        self.msg_decoder = self._load_msg_decoder(params)
         self._to(self.device)
         
         #dataset
@@ -96,10 +96,19 @@ class Trainer():
             return getattr(torch.optim, optimizer)(self.finetuned_vae.decoder.parameters(), **optim_params)
         raise ValueError(f'Unknown optimizer "{optimizer}", choose among {str(torch_optimizers)}')
 
-    def _load_msg_decoder(self) -> nn.Module:
+    def _load_msg_decoder(self, params) -> nn.Module:
 
-        ckpt_path = self.params.msg_decoder_path
-        return torch.jit.load(ckpt_path)
+        """load msg decoder from checkpoint"""
+        ckpt_path = params.msg_decoder_path
+        try:
+            msg_decoder = torch.jit.load(ckpt_path)
+        except:
+            raise KeyError(f"No checkpoint found in {ckpt_path}")
+        for msg_decoder_params in msg_decoder.parameters():
+            msg_decoder_params.requires_grad = False
+        msg_decoder.eval()
+
+        return msg_decoder
     
     def _to(self, device: str):
 
@@ -113,6 +122,9 @@ class Trainer():
         
 
     def train(self) -> None:
+
+        key = list_to_torch(self.watermark_key)
+        for 
         
         raise NotImplementedError
 
