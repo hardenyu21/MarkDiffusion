@@ -1,5 +1,6 @@
 """The code is modified based on https://github.com/facebookresearch/stable_signature """
 
+#TODO: loss function, and training, evaluation pipeline
 import os
 import sys
 import random
@@ -124,7 +125,6 @@ class Trainer():
     def train(self) -> None:
 
         key = list_to_torch(self.watermark_key)
-        for 
         
         raise NotImplementedError
 
