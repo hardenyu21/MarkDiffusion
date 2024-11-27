@@ -1,7 +1,5 @@
 """The code is modified based on https://github.com/facebookresearch/stable_signature """
 
-import argparse
-import json
 import os
 import sys
 import random
@@ -12,12 +10,13 @@ import torch.nn.functional as F
 from copy import deepcopy
 from typing import Tuple, Callable, Iterable
 import torch.utils
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 from torchvision import transforms
 from torchvision.utils import save_image
 from diffusers import AutoencoderKL
 from omegaconf import OmegaConf
 from utils.param_utils import parse_optim_params
+from utils.data_utils import get_dataloader, default_transform, img_transform, vqgan_transform
 
 class Trainer():
 
@@ -55,8 +54,8 @@ class Trainer():
         self._to(self.device)
         
         #dataset
-        self.train_loader, self.val_loader = self._get_dataloader()
-        self.optimizer = self._build_optimizer()
+        self.train_loader, self.val_loader = self._get_dataloader(params)
+        self.optimizer = self._build_optimizer(params)
 
 
     def _seed_all(self, seed: int) -> None:
@@ -72,14 +71,23 @@ class Trainer():
         bits = random.choice([0, 1], k = num_bits)
         return bits
         
-    def _get_dataloader(self) -> tuple[DataLoader, DataLoader]:
-        
-        raise NotImplementedError
+    def _get_dataloader(self, params) -> tuple[DataLoader, DataLoader]:
 
-    def _build_optimizer(self) -> torch.optim.optimizer:
+        transform = vqgan_transform(params.img_size)
+        num_train = params.steps * params.batch_size
+        train_loader = get_dataloader(params.train_dir, transform = transform, 
+                                      num_imgs = num_train, batch_size = params.batch_size,
+                                      shuffle = True, collate_fn = None)
+        val_loader = get_dataloader(params.val_dir, transform = transform, 
+                                    num_imgs = params.num_val, batch_size = params.batch_size,
+                                    shuffle = False, collate_fn = None)
         
-        optimizer = self.params.optimizer
-        optim_params = parse_optim_params(self.params)
+        return train_loader, val_loader
+
+    def _build_optimizer(self, params) -> torch.optim.optimizer:
+        
+        optimizer = params.optimizer
+        optim_params = parse_optim_params(params)
 
         torch_optimizers = sorted(name for name in torch.optim.__dict__
             if name[0].isupper() and not name.startswith("__")
@@ -106,10 +114,6 @@ class Trainer():
 
     def train(self) -> None:
         
-        num_keys = self.params.num_keys
-        for key_index in range(num_keys):
-            self.train_per_key()
-
         raise NotImplementedError
 
     def evaluate(self) -> None:

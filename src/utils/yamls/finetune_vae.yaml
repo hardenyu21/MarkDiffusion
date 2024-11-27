@@ -2,8 +2,7 @@
 
 train_dir: "path/to/train_dir"  # Path to the training data directory
 val_dir: "path/to/val_dir"      # Path to the validation data directory
-num_training: 500               # number of images for training
-num_validation: 500             # number of images for validation
+num_val: 1000            # number of images for validation
 
 # Model parameters
 msg_decoder_path: "models/hidden/dec_48b_whit.torchscript.pt"  # Path to the hidden decoder for the watermarking model
