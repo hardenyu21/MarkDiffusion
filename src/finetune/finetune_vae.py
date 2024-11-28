@@ -18,6 +18,7 @@ from diffusers import AutoencoderKL
 from omegaconf import OmegaConf
 from utils.param_utils import parse_optim_params
 from utils.data_utils import get_dataloader, default_transform, img_transform, vqgan_transform, list_to_torch
+from loss.loss_provider import LossProvider
 
 class Trainer():
 
@@ -57,6 +58,8 @@ class Trainer():
         #dataset
         self.train_loader, self.val_loader = self._get_dataloader(params)
         self.optimizer = self._build_optimizer(params)
+
+        ##
 
 
     def _seed_all(self, seed: int) -> None:
@@ -110,6 +113,43 @@ class Trainer():
         msg_decoder.eval()
 
         return msg_decoder
+    
+    def _loss_fn(self, params):
+        
+        """
+        get loss function, the loss function and weights copy from https://github.com/SteffenCzolbe/PerceptualSimilarity
+        """
+
+        print(f'>>> Creating losses...')
+        print(f'Losses: {params.loss_w} and {params.loss_i}...')
+        if params.loss_w == 'mse':        
+            loss_w = lambda decoded, keys, temp=10.0: torch.mean((decoded*temp - (2*keys-1))**2) # b k - b k
+        elif params.loss_w == 'bce':
+            loss_w = lambda decoded, keys, temp=10.0: F.binary_cross_entropy_with_logits(decoded*temp, keys, reduction='mean')
+        else:
+            raise NotImplementedError
+    
+        if params.loss_i == 'mse':
+            loss_i = lambda imgs_w, imgs: torch.mean((imgs_w - imgs)**2)
+        elif params.loss_i == 'watson-dft':
+            provider = LossProvider()
+            loss_percep = provider.get_loss_function('Watson-DFT', colorspace='RGB', pretrained=True, reduction='sum')
+            loss_percep = loss_percep.to(self.device)
+            loss_i = lambda imgs_w, imgs: loss_percep((1+imgs_w)/2.0, (1+imgs)/2.0)/ imgs_w.shape[0]
+        elif params.loss_i == 'watson-vgg':
+            provider = LossProvider()
+            loss_percep = provider.get_loss_function('Watson-VGG', colorspace='RGB', pretrained=True, reduction='sum')
+            loss_percep = loss_percep.to(self.device)
+            loss_i = lambda imgs_w, imgs: loss_percep((1+imgs_w)/2.0, (1+imgs)/2.0)/ imgs_w.shape[0]
+        elif params.loss_i == 'ssim':
+            provider = LossProvider()
+            loss_percep = provider.get_loss_function('SSIM', colorspace='RGB', pretrained=True, reduction='sum')
+            loss_percep = loss_percep.to(self.device)
+            loss_i = lambda imgs_w, imgs: loss_percep((1+imgs_w)/2.0, (1+imgs)/2.0)/ imgs_w.shape[0]
+        else:
+            raise NotImplementedError
+        
+        return loss_w, loss_i
     
     def _to(self, device: str):
 

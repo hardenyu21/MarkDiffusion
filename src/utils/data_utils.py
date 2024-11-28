@@ -72,19 +72,14 @@ class COCODataset(Dataset):
 
     def __init__(self,
                  data_dir: str,
-                 img_size: int,
                  transform: transforms = None) -> None:
         
-        self.is_train = False
-        self.img_size = img_size
-        if 'train' in data_dir:
-            self.is_train = True
         if transform:
             self.transform = transform
         self.images = self._get_image_paths(data_dir)
 
     @functools.lru_cache()
-    def _get_image_paths(path):
+    def _get_image_paths(self, path:str):
         """
         get the image paths
         """
@@ -130,6 +125,12 @@ def get_dataloader(data_dir: str,
 
 if __name__ == '__main__':
 
-    with open("/hpc2hdd/home/yhuang489/MSCOCO/captions/captions_val2017.json", 'r') as f:
-        data = json.load(f)
-    print(len(data['images']), len(data['annotations']))
+
+   
+    loader = get_dataloader("/hpc2hdd/home/yhuang489/MSCOCO/val2017", 
+                            transform = img_transform(256), num_imgs = 100, 
+                            collate_fn=None)
+
+    for x in loader:
+        print(x.shape)
+        break
