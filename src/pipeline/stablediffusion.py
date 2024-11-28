@@ -53,7 +53,7 @@ class WaterMarkedStableDiffusionPipeline():
                  
             #TODO: replace path of vae decoder and msg decoder
             #self.vae.decoder = torch.jit.load('path/to/ckpt')
-            self.msg_decoder = torch.jit.load('/hpc2hdd/home/yhuang489/MarkDiffusion/src/extractor/ckpts/dec_48b_whit.torchscript.pt')  
+            self.msg_decoder = torch.jit.load('ckpts/msg_decoder/dec_48b_whit.torchscript.pt')  
             self.msg_decoder.eval()
     
 

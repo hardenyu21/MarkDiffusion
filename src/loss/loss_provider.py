@@ -16,10 +16,16 @@ class LossProvider():
     def __init__(self):
         self.loss_functions = ['L1', 'L2', 'SSIM', 'Watson-dct', 'Watson-fft', 'Watson-vgg', 'Deeploss-vgg', 'Deeploss-squeeze', 'Adaptive']
         self.color_models = ['LA', 'RGB']
+        work_dir = os.getcwd()
+        weights_path = os.path.join(work_dir, 'ckpts/loss')
+        if not os.path.exists(weights_path):
+            os.makedirs(weights_path)
+        self.weights_path = weights_path
 
     def load_state_dict(self, filename):
-        work_dir = os.getcwd()
-        path = os.path.join(work_dir, 'ckpts/loss', filename)
+        path = os.path.join(self.weights_path, filename)
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"{path} does not exist, you may download them from https://github.com/SteffenCzolbe/PerceptualSimilarity first.")
         return torch.load(path, map_location='cpu')
     
     def get_loss_function(self, model, colorspace='RGB', reduction='sum', deterministic=False, pretrained=True, image_size=None):
