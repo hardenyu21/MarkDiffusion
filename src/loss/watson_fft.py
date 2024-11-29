@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from loss.rfft2d import Rfft2d
+from src.loss.rfft2d import Rfft2d
 
 EPS = 1e-10
 

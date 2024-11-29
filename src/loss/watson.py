@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from loss.dct2d import Dct2d
+from src.loss.dct2d import Dct2d
 
 EPS = 1e-10
 

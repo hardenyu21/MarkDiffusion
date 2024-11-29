@@ -1,8 +1,9 @@
 """The code is modified based on https://github.com/facebookresearch/stable_signature """
 
-#TODO: and training, evaluation pipeline
+#TODO: save the output
 import os
 import sys
+sys.path.append(os.getcwd())
 import json
 import random
 import numpy as np
@@ -10,9 +11,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from copy import deepcopy
-from typing import Tuple, Callable, Iterable, List
-import torch.utils
-from torch.utils.data import DataLoader, Subset
+from typing import Tuple, Callable, Iterable
+from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.utils import save_image
 from diffusers import AutoencoderKL
@@ -48,7 +48,7 @@ class Trainer():
         self._seed_all(params.seed)
 
         #Initialize vae decoder and msg_decoder
-        self.vae = AutoencoderKL.from_pretrained("runwayml/stable-diffusion-v1-5") #vae is the same for different versions of stable diffusion
+        self.vae = AutoencoderKL.from_pretrained("runwayml/stable-diffusion-v1-5", subfolder = "vae") #vae is the same for different versions of stable diffusion
         self.finetuned_vae_decoders = self._build_finetuned_vae_decoder(params.num_keys)   ##requires_grad = True
         self._freeze()
         self.msg_decoder = self._load_msg_decoder(params)
@@ -66,7 +66,7 @@ class Trainer():
         ##loss function
         self.loss_w, self.loss_i = self._loss_fn(params)
     
-    def _generate_key(self, num_keys: int, num_bits: int) -> List[List]:
+    def _generate_key(self, num_keys: int, num_bits: int) -> list[list]:
 
         """
         generate watermark keys based before set the random seed.
@@ -126,7 +126,7 @@ class Trainer():
         
         return train_loader, val_loader
 
-    def _build_optimizer(self, params, i: int) -> torch.optim.optimizer:
+    def _build_optimizer(self, params, i: int) -> torch.optim.Optimizer:
         
         optimizer = params.optimizer
         optim_params = parse_optim_params(params)
@@ -196,18 +196,18 @@ class Trainer():
         key = data_utils.list_to_torch(key)
         header = 'Train'
         metric_logger = MetricLogger(delimiter="  ")
+        decoder.train()
         for step, imgs in enumerate(metric_logger.log_every(self.train_loader, params.log_freq, header)):
             imgs = imgs.to(self.device)
             keys = key.repeat(imgs.shape[0], 1)
         
             adjust_learning_rate(optimizer, step, params.steps, params.warmup_steps, params.lr)
             # encode images
-            imgs_z = self.vae.encode(imgs) # b c h w -> b z h/f w/f
-            imgs_z = imgs_z.mode()
+            imgs_z = self.vae.encode(imgs).latent_dist.sample() # b c h w -> b z h/f w/f
 
             # decode latents with original and finetuned decoder
-            imgs_d0 = self.vae.decode(imgs_z) # b z h/f w/f -> b c h w
-            imgs_w = decoder.decode(imgs_z) # b z h/f w/f -> b c h w
+            imgs_d0 = self.vae.decode(imgs_z).sample # b z h/f w/f -> b c h w
+            imgs_w = decoder.decode(imgs_z).sample # b z h/f w/f -> b c h w
 
             # extract watermark
             decoded = self.msg_decoder(vqgan_to_imnet(imgs_w)) # b c h w -> b k
@@ -251,7 +251,6 @@ class Trainer():
                 params,
                 key: list[int],
                 decoder: nn.Module,
-                optimizer: torch.optim.Optimizer, 
                 vqgan_to_imnet: transforms
                 ) -> dict:
         
@@ -262,11 +261,10 @@ class Trainer():
         
             imgs = imgs.to(self.device)
 
-            imgs_z = self.vae.encode(imgs) # b c h w -> b z h/f w/f
-            imgs_z = imgs_z.mode()
+            imgs_z = self.vae.encode(imgs).latent_dist.sample() # b c h w -> b z h/f w/f
 
-            imgs_d0 = self.vae.decode(imgs_z) # b z h/f w/f -> b c h w
-            imgs_w = decoder.decode(imgs_z) # b z h/f w/f -> b c h w
+            imgs_d0 = self.vae.decode(imgs_z).sample # b z h/f w/f -> b c h w
+            imgs_w = decoder.decode(imgs_z).sample # b z h/f w/f -> b c h w
         
             keys = key.repeat(imgs.shape[0], 1)
 
@@ -304,9 +302,23 @@ class Trainer():
     
     def train(self) -> None:
         
-        raise NotImplementedError
+        for i in range(len(self.watermark_key)):
+            train_status =  self._train_per_key(self.params, self.watermark_key[i], self.finetuned_vae_decoders[i],
+                                                self.optimizers[i], data_utils.vqgan_to_imnet())
+            val_status = self.evaluate(self.params, self.watermark_key[i], self.finetuned_vae_decoders[i],
+                                                                    data_utils.vqgan_to_imnet())
     
     @property
     def device(self):
 
         return "cuda" if torch.cuda.is_available() else "cpu"
+    
+
+if __name__ == '__main__':
+    
+    loader = data_utils.get_dataloader("/hpc2hdd/home/yhuang489/MSCOCO/train2017", 
+                            transform = data_utils.vqgan_transform(256), num_imgs = 100, 
+                            collate_fn=None)
+
+    model = AutoencoderKL.from_pretrained("runwayml/stable-diffusion-v1-5", subfolder = "vae")
+    
