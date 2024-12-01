@@ -1,7 +1,7 @@
 # Data parameters
 
-train_dir: "path/to/train_dir"  # Path to the training data directory
-val_dir: "path/to/val_dir"      # Path to the validation data directory
+train_dir: "/hpc2hdd/home/yhuang489/MSCOCO/train2017"  # Path to the training data directory
+val_dir: "/hpc2hdd/home/yhuang489/MSCOCO/val2017"      # Path to the validation data directory
 num_val: 1000            # number of images for validation
 
 # Model parameters
@@ -13,8 +13,8 @@ decoder_channels: 64         # Number of channels in the decoder of the watermar
 
 # Training parameters
 batch_size: 4                # Batch size for training
-img_size: 256                # Resize images to this size
-loss_itype: "watson-vgg",    # Type of loss for the image loss. Can be watson-vgg, mse, watson-dft, etc.
+img_size: 512                # Resize images to this size
+loss_i: "watson-vgg"         # Type of loss for the image loss. Can be watson-vgg, mse, watson-dft, etc.
 loss_w: "bce"                # Type of loss for the watermark loss. Can be mse or bce.
 lambda_i: 0.2                # Weight of the image loss in the total loss
 lambda_w: 1.0                # Weight of the watermark loss in the total loss

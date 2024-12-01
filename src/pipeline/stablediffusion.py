@@ -36,8 +36,8 @@ class WaterMarkedStableDiffusionPipeline():
 
     transform= transforms.Compose([
     transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406],std=[0.229, 0.224, 0.225])
-    ])
+    transforms.Normalize(mean=[0.5, 0.5, 0.5], 
+                                           std=[0.5, 0.5, 0.5])])
 
     def __init__(self,
                  model_card: str,
@@ -46,8 +46,10 @@ class WaterMarkedStableDiffusionPipeline():
         
         self.pipeline = StableDiffusionPipeline.from_pretrained(model_card)
         self.vae = self.pipeline.vae
-        self.unet = self.pipeline.unet
-        self.text_encoder = self.pipeline.text_encoder
+        stat_dict =  torch.load("ckpts/finetune_vae/checkpoint_000.pth", map_location = 'cpu')
+        self.vae.load_state_dict(stat_dict)
+        #self.unet = self.pipeline.unet
+        #self.text_encoder = self.pipeline.text_encoder
 
         if method == 'SS':
                  
@@ -64,13 +66,14 @@ class WaterMarkedStableDiffusionPipeline():
         self.msg_decoder.to(device)
 
     @torch.no_grad()
-    def generate(self, prompts: str):
+    def generate(self, prompts: str, return_msg: bool = False):
 
         images = self.pipeline(prompts)[0]
         transformed_images = torch.stack([self.transform(image) for image in images])
         messages = self.msg_decoder(transformed_images.to(self.device))
-
-        return images, messages
+        if return_msg:
+            return images, messages
+        return images
     
     @property
     def device(self):
@@ -89,10 +92,10 @@ if __name__ == '__main__':
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    print(pipe.vae.encoder.training)  # 如果是 False, 说明已经处于 eval 模式
+    print(pipe.vae.encoder.training) 
     print(pipe.vae.decoder.training)
-    print(pipe.unet.training)  # 同理
-    print(pipe.text_encoder.training)  # 同理
+    print(pipe.unet.training)  
+    print(pipe.text_encoder.training) 
     """
 
     #pipe.to(device)
@@ -107,17 +110,16 @@ if __name__ == '__main__':
         msg = msg2str(msg)
         print(msg)
     """
-    import torch
-    from diffusers import StableDiffusionPipeline
-    versions = [
-        "CompVis/stable-diffusion-v1-2",
-        "CompVis/stable-diffusion-v1-3",
-    ]
-
-    vae_dict = {}
-    for version in versions:
-        print(f"Loading VAE for {version}...")
-        pipeline = StableDiffusionPipeline.from_pretrained(version)
-        print("Done!")
+    import warnings
+    warnings.filterwarnings('ignore')
+    torch.manual_seed(42)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    w_pipe = WaterMarkedStableDiffusionPipeline("runwayml/stable-diffusion-v1-5")
+    w_pipe.to(device)
+    images, msgs = w_pipe.generate('A man is walking on the road', return_msg = True)
+    for i, img in enumerate(images):
+        img.save(f"test{i}.png")
+        msg = (msgs[i] > 0).tolist()
+        print(msg)
     
     #print(pipeline.vae)

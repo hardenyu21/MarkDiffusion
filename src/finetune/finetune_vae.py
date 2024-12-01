@@ -17,10 +17,11 @@ from torchvision import transforms
 from torchvision.utils import save_image
 from diffusers import AutoencoderKL
 from omegaconf import OmegaConf
-from src.utils.param_utils import parse_optim_params, adjust_learning_rate
+from src.utils.param_utils import  get_params, parse_optim_params, adjust_learning_rate
 from src.utils import data_utils
 from src.loss.loss_provider import LossProvider
 from src.utils.log_utils import MetricLogger
+from pathlib import Path
 
 
 class Trainer():
@@ -41,6 +42,13 @@ class Trainer():
     def __init__(self, params: OmegaConf) -> None:
 
         self.params = params
+
+        self.output_dir = os.path.join(os.getcwd(), params.output_dir)
+        self.model_dir = os.path.join(os.getcwd(), params.model_dir)
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir)
+        if not os.path.exists(self.model_dir):
+            os.makedirs(self.model_dir)
 
         #generate key before sed seed
         self.watermark_key = self._generate_key(params.num_keys, params.num_bits)
@@ -89,8 +97,12 @@ class Trainer():
 
         finetuned_vae_decoders = []
         for _ in range(num_keys):
-            decoder = deepcopy(self.vae.decoder)
-            finetuned_vae_decoders.append(decoder)
+            vae = deepcopy(self.vae)
+            for vae_params in vae.parameters():
+                vae_params.requires_grad = False
+            for vae_decoder_params in vae.decoder.parameters():
+                vae_decoder_params.requires_grad = True
+            finetuned_vae_decoders.append(vae)
         return finetuned_vae_decoders
     
     def _freeze(self):
@@ -199,7 +211,7 @@ class Trainer():
         decoder.train()
         for step, imgs in enumerate(metric_logger.log_every(self.train_loader, params.log_freq, header)):
             imgs = imgs.to(self.device)
-            keys = key.repeat(imgs.shape[0], 1)
+            keys = key.repeat(imgs.shape[0], 1).to(self.device)
         
             adjust_learning_rate(optimizer, step, params.steps, params.warmup_steps, params.lr)
             # encode images
@@ -246,7 +258,7 @@ class Trainer():
         return {k: meter.global_avg for k, meter in metric_logger.meters.items()}        
 
     @torch.no_grad()
-    def evaluate(
+    def _evaluate(
                 self,
                 params,
                 key: list[int],
@@ -256,6 +268,7 @@ class Trainer():
         
         header = 'Eval'
         metric_logger = MetricLogger(delimiter="  ")
+        key = data_utils.list_to_torch(key)
         decoder.eval()
         for step, imgs in enumerate(metric_logger.log_every(self.val_loader, params.log_freq, header)):
         
@@ -263,16 +276,17 @@ class Trainer():
 
             imgs_z = self.vae.encode(imgs).latent_dist.sample() # b c h w -> b z h/f w/f
 
-            imgs_d0 = self.vae.decode(imgs_z).sample # b z h/f w/f -> b c h w
+            imgs_d0 = self.vae.decode(imgs_z).sample# b z h/f w/f -> b c h w
             imgs_w = decoder.decode(imgs_z).sample # b z h/f w/f -> b c h w
         
-            keys = key.repeat(imgs.shape[0], 1)
+            keys = key.repeat(imgs.shape[0], 1).to(self.device)
 
             log_stats = {
                 "iteration": step + 1,
                 "psnr": data_utils.psnr(imgs_w, imgs_d0).mean().item(),
                 # "psnr_ori": utils_img.psnr(imgs_w, imgs).mean().item(),
             }
+            imgs_w, imgs_d0 = torch.clamp(imgs_w, -1, 1), torch.clamp(imgs_d0, -1, 1)
             attacks = {
                 'none': lambda x: x,
                 'crop_01': lambda x: data_utils.center_crop(x, 0.1),
@@ -299,15 +313,35 @@ class Trainer():
                 print("Averaged {} stats:".format('eval'), metric_logger)
             
             return {k: meter.global_avg for k, meter in metric_logger.meters.items()}
+        
+    def _save(self, index: int, **kargs) -> None:
+
+
+        watermark_key = data_utils.list_to_str(self.watermark_key[index])
+        train_stats = kargs['train_stats']
+        val_stats = kargs['val_stats']
+
+        log_stats = {'key': watermark_key,
+                **{f'train_{k}': v for k, v in train_stats.items()},
+                **{f'val_{k}': v for k, v in val_stats.items()},
+            }
+        torch.save(self.finetuned_vae_decoders[index].state_dict(), os.path.join(self.model_dir, f"checkpoint_{index:03d}.pth"))
+        with (Path(self.output_dir) / "log.txt").open("a") as f:
+            f.write(json.dumps(log_stats) + "\n")
+        with (Path(self.output_dir) / "keys.txt").open("a") as f:
+            f.write(os.path.join(self.model_dir, f"checkpoint_{index:03d}.pth") + "\t" + watermark_key + "\n")
+       
     
     def train(self) -> None:
         
         for i in range(len(self.watermark_key)):
-            train_status =  self._train_per_key(self.params, self.watermark_key[i], self.finetuned_vae_decoders[i],
+            print(f'>>> Training...')
+            train_stats =  self._train_per_key(self.params, self.watermark_key[i], self.finetuned_vae_decoders[i],
                                                 self.optimizers[i], data_utils.vqgan_to_imnet())
-            val_status = self.evaluate(self.params, self.watermark_key[i], self.finetuned_vae_decoders[i],
+            val_stats = self._evaluate(self.params, self.watermark_key[i], self.finetuned_vae_decoders[i],
                                                                     data_utils.vqgan_to_imnet())
-    
+            self._save(i, train_stats = train_stats, val_stats = val_stats)
+
     @property
     def device(self):
 
@@ -315,10 +349,18 @@ class Trainer():
     
 
 if __name__ == '__main__':
+
+    """
     
     loader = data_utils.get_dataloader("/hpc2hdd/home/yhuang489/MSCOCO/train2017", 
                             transform = data_utils.vqgan_transform(256), num_imgs = 100, 
                             collate_fn=None)
 
     model = AutoencoderKL.from_pretrained("runwayml/stable-diffusion-v1-5", subfolder = "vae")
-    
+    """
+    import warnings
+    warnings.filterwarnings("ignore")
+    params_path = "src/utils/yamls/finetune_vae.yaml"
+
+    trainer = Trainer(params = get_params(params_path))
+    trainer.train()

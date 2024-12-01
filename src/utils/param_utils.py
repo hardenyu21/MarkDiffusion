@@ -19,6 +19,8 @@ def parse_optim_params(params):
     if "weight_decay" in params:
         optim_params["weight_decay"] = params.weight_decay
 
+    return optim_params
+
 def adjust_learning_rate(optimizer, step, steps, warmup_steps, blr, min_lr=1e-6):
     """Decay the learning rate with half-cycle cosine after warmup"""
     if step < warmup_steps:
