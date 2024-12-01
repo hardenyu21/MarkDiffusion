@@ -57,7 +57,7 @@ class Trainer():
 
         #Initialize vae decoder and msg_decoder
         self.vae = AutoencoderKL.from_pretrained("runwayml/stable-diffusion-v1-5", subfolder = "vae") #vae is the same for different versions of stable diffusion
-        self.finetuned_vae_decoders = self._build_finetuned_vae_decoder(params.num_keys)   ##requires_grad = True
+        self.finetuned_vaes = self._build_finetuned_vae_decoder(params.num_keys)   ##requires_grad = True
         self._freeze()
         self.msg_decoder = self._load_msg_decoder(params)
         self._to(self.device)
@@ -93,17 +93,17 @@ class Trainer():
         torch.cuda.manual_seed(seed)
         torch.cuda.manual_seed_all(seed) 
 
-    def _build_finetuned_vae_decoder(self, num_keys: int):
+    def _build_finetuned_vae(self, num_keys: int):
 
-        finetuned_vae_decoders = []
+        finetuned_vaes = []
         for _ in range(num_keys):
             vae = deepcopy(self.vae)
             for vae_params in vae.parameters():
                 vae_params.requires_grad = False
             for vae_decoder_params in vae.decoder.parameters():
                 vae_decoder_params.requires_grad = True
-            finetuned_vae_decoders.append(vae)
-        return finetuned_vae_decoders
+            finetuned_vaes.append(vae)
+        return finetuned_vaes
     
     def _freeze(self):
 
@@ -190,7 +190,7 @@ class Trainer():
     def _to(self, device: str):
 
         self.vae.to(device)
-        for decoder in self.finetuned_vae_decoders:
+        for decoder in self.finetuned_vaes:
             decoder.to(device)
         self.msg_decoder.to(device)
         
@@ -325,7 +325,7 @@ class Trainer():
                 **{f'train_{k}': v for k, v in train_stats.items()},
                 **{f'val_{k}': v for k, v in val_stats.items()},
             }
-        torch.save(self.finetuned_vae_decoders[index].state_dict(), os.path.join(self.model_dir, f"checkpoint_{index:03d}.pth"))
+        torch.save(self.finetuned_vaes[index].state_dict(), os.path.join(self.model_dir, f"checkpoint_{index:03d}.pth"))
         with (Path(self.output_dir) / "log.txt").open("a") as f:
             f.write(json.dumps(log_stats) + "\n")
         with (Path(self.output_dir) / "keys.txt").open("a") as f:
@@ -336,9 +336,9 @@ class Trainer():
         
         for i in range(len(self.watermark_key)):
             print(f'>>> Training...')
-            train_stats =  self._train_per_key(self.params, self.watermark_key[i], self.finetuned_vae_decoders[i],
+            train_stats =  self._train_per_key(self.params, self.watermark_key[i], self.finetuned_vaes[i],
                                                 self.optimizers[i], data_utils.vqgan_to_imnet())
-            val_stats = self._evaluate(self.params, self.watermark_key[i], self.finetuned_vae_decoders[i],
+            val_stats = self._evaluate(self.params, self.watermark_key[i], self.finetuned_vaes[i],
                                                                     data_utils.vqgan_to_imnet())
             self._save(i, train_stats = train_stats, val_stats = val_stats)
 
