@@ -3,7 +3,7 @@ import math
 
 def get_params(path: str):
     
-    """load parameters for exoeriment from yaml file"""
+    """load parameters for experiment from yaml file"""
 
     params = OmegaConf.load(path)
 

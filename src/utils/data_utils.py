@@ -5,10 +5,22 @@ from typing import List, Any
 from torch.utils.data import Dataset, Subset, DataLoader
 from torchvision import transforms
 from torchvision.datasets.folder import is_image_file, default_loader
-import json
+#import json
 import functools
 from augly.image import functional as aug_functional
 from torchvision.transforms import functional
+
+
+normalize_img = transforms.Normalize(mean=[0.485, 0.456, 0.406], 
+                                         std=[0.229, 0.224, 0.225]) # Normalize (x - mean) / std
+unnormalize_img = transforms.Normalize(mean=[-0.485/0.229, -0.456/0.224, -0.406/0.225], 
+                                           std=[1/0.229, 1/0.224, 1/0.225]) # Unnormalize (x * std) + mean
+
+normalize_vqgan = transforms.Normalize(mean=[0.5, 0.5, 0.5], 
+                                           std=[0.5, 0.5, 0.5]) # Normalize (x - 0.5) / 0.5
+    
+unnormalize_vqgan = transforms.Normalize(mean=[-1, -1, -1], 
+                                             std=[1/0.5, 1/0.5, 1/0.5]) # Unnormalize (x * 0.5) + 0.5
 
 def list_to_str(key: List[int]):
     """
@@ -34,16 +46,13 @@ def list_to_torch(key: List[int]):
     """
     return torch.tensor(key, dtype = torch.float32)
 
-normalize_img = transforms.Normalize(mean=[0.485, 0.456, 0.406], 
-                                         std=[0.229, 0.224, 0.225]) # Normalize (x - mean) / std
-unnormalize_img = transforms.Normalize(mean=[-0.485/0.229, -0.456/0.224, -0.406/0.225], 
-                                           std=[1/0.229, 1/0.224, 1/0.225]) # Unnormalize (x * std) + mean
-
-normalize_vqgan = transforms.Normalize(mean=[0.5, 0.5, 0.5], 
-                                           std=[0.5, 0.5, 0.5]) # Normalize (x - 0.5) / 0.5
-    
-unnormalize_vqgan = transforms.Normalize(mean=[-1, -1, -1], 
-                                             std=[1/0.5, 1/0.5, 1/0.5]) # Unnormalize (x * 0.5) + 0.5
+def torch_to_str(key: torch.Tensor):
+    """
+    convert torch Tensor watermark key to str
+    """
+    list_key = (key > 0).int().tolist()
+    #if len(list_key) > 1:
+    return [list_to_str(item) for item in list_key]
 
 def default_transform():
 

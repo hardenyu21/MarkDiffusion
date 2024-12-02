@@ -1,6 +1,11 @@
-"""The code is modified based on https://github.com/facebookresearch/stable_signature """
+"""
+This code implement the watermarking method proposed by the papaer
 
-#TODO: save the output
+The Stable Signature: Rooting Watermarks in Laten tDiffusion Models (ICCV 2023)
+
+and is modified based on https://github.com/facebookresearch/stable_signature 
+"""
+
 import os
 import sys
 sys.path.append(os.getcwd())
@@ -11,10 +16,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from copy import deepcopy
-from typing import Tuple, Callable, Iterable
+from typing import Tuple
 from torch.utils.data import DataLoader
 from torchvision import transforms
-from torchvision.utils import save_image
 from diffusers import AutoencoderKL
 from omegaconf import OmegaConf
 from src.utils.param_utils import  get_params, parse_optim_params, adjust_learning_rate
@@ -26,18 +30,46 @@ from pathlib import Path
 
 class Trainer():
 
-    ##TODO: add comments
     """
     Trainer class for fine-tuning VAE models in Stable Diffusion.
 
-    This class handles loading the pre-trained VAE model, preparing the dataloaders,
-    and building the optimizer for training or fine-tuning.
+    This class is responsible for handling the entire fine-tuning workflow, including:
+    - Loading the pre-trained VAE model.
+    - Generating and managing watermark keys.
+    - Initializing and freezing parts of the model as required.
+    - Preparing datasets and dataloaders for training and validation.
+    - Configuring optimizers and learning rate schedulers.
+    - Defining and applying custom loss functions for training.
+    - Logging training and validation statistics, including saving fine-tuned models.
+
+    Methods:
+        - `_generate_key`: Generates random watermark keys based on the specified number of keys and bit length.
+        - `_seed_all`: Sets the random seed for reproducibility.
+        - `_build_finetuned_vae`: Creates fine-tuned VAE instances, ensuring only the decoder is trainable.
+        - `_freeze`: Freezes the pre-trained VAE to prevent updates during training.
+        - `_load_msg_decoder`: Loads the message decoder for watermark extraction.
+        - `_get_dataloader`: Prepares training and validation dataloaders from the specified dataset.
+        - `_build_optimizer`: Builds optimizers for training, configured for fine-tuning specific VAE decoders.
+        - `_loss_fn`: Configures the loss functions for image and watermark reconstruction.
+        - `_train_per_key`: Handles the training process for a single watermark key.
+        - `_evaluate`: Evaluates the fine-tuned VAE decoder using various robustness tests.
+        - `_save`: Saves the fine-tuned model, training statistics, and watermark keys.
+        - `train`: Orchestrates the training process for all watermark keys.
 
     Attributes:
-        vae (AutoencoderKL): The pre-trained VAE model.
-        finetuned_vae (AutoencoderKL): A deepcopy of the pre-trained VAE for fine-tuning.
-        params (argparse.Namespace): Command-line arguments parsed using argparse.
+        - `vae` (AutoencoderKL): The pre-trained VAE model used as a base for fine-tuning.
+        - `finetuned_vaes` (list[AutoencoderKL]): A list of fine-tuned VAE models, one for each watermark key.
+        - `params` (OmegaConf): Configuration parameters for training.
+        - `output_dir` (str): Directory for saving logs and outputs.
+        - `model_dir` (str): Directory for saving fine-tuned model checkpoints.
+        - `watermark_key` (list[list[int]]): A list of binary watermark keys.
+        - `msg_decoder` (nn.Module): The message decoder model for extracting watermarks.
+        - `train_loader`, `val_loader` (DataLoader): Data loaders for training and validation datasets.
+        - `optimizers` (list[torch.optim.Optimizer]): A list of optimizers for each fine-tuned VAE decoder.
+        - `loss_w`, `loss_i`: Custom loss functions for watermark and image reconstruction, respectively.
+        - `device` (str): The device (CPU or GPU) used for computation.
     """
+
 
     def __init__(self, params: OmegaConf) -> None:
 
@@ -297,8 +329,8 @@ class Trainer():
                 'resize_07': lambda x: data_utils.resize(x, 0.7),
                 'brightness_1p5': lambda x: data_utils.adjust_brightness(x, 1.5),
                 'brightness_2': lambda x: data_utils.adjust_brightness(x, 2),
-                'jpeg_80': lambda x: data_utils.jpeg_compress(x, 80),
-                'jpeg_50': lambda x: data_utils.jpeg_compress(x, 50),
+                #'jpeg_80': lambda x: data_utils.jpeg_compress(x, 80),
+                #'jpeg_50': lambda x: data_utils.jpeg_compress(x, 50),
             }
             for name, attack in attacks.items():
                 imgs_aug = attack(vqgan_to_imnet(imgs_w))
