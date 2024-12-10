@@ -31,7 +31,7 @@ class WaterMarkedStableDiffusionPipeline():
     Example:
         >>> device = 'cuda' if torch.cuda.is_availabel() else 'cpu'
         >>> WPipeline = WaterMarkedStableDiffusionPipeline("runwayml/stable-diffusion-v1-5").to(device)
-        >>> images = WPipeline.generate("A sunny beach")
+        >>> images = WPipeline("A sunny beach")
     """
 
     transform= transforms.Compose([
@@ -61,7 +61,7 @@ class WaterMarkedStableDiffusionPipeline():
             self.msg_decoder.to(device)
 
     @torch.no_grad()
-    def generate(self, prompts: str, return_msg: bool = False):
+    def __call__(self, prompts: str, return_msg: bool = False):
 
         images = self.pipeline(prompts)[0]
         transformed_images = torch.stack([self.transform(image) for image in images])

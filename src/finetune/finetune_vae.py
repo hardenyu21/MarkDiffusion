@@ -9,11 +9,11 @@ and is modified based on https://github.com/facebookresearch/stable_signature
 import os
 import sys
 sys.path.append(os.getcwd())
-import json
 import random
 import numpy as np
 import torch
 import torch.nn as nn
+import tqdm
 import torch.nn.functional as F
 from copy import deepcopy
 from typing import Tuple
@@ -24,9 +24,7 @@ from omegaconf import OmegaConf
 from src.utils.param_utils import  get_params, parse_optim_params, adjust_learning_rate
 from src.utils import data_utils
 from src.loss.loss_provider import LossProvider
-from src.utils.log_utils import MetricLogger
-from pathlib import Path
-
+from src.utils.log_utils import MetricLogger, OutputWriter
 
 class Trainer():
 
@@ -81,7 +79,7 @@ class Trainer():
             os.makedirs(self.output_dir)
         if not os.path.exists(self.model_dir):
             os.makedirs(self.model_dir)
-
+        self.log_file = os.path.join(self.output_dir, params.log_file)
         #generate key before sed seed
         self.watermark_key = self._generate_key(params.num_keys, params.num_bits)
         #set seed
@@ -89,7 +87,7 @@ class Trainer():
 
         #Initialize vae decoder and msg_decoder
         self.vae = AutoencoderKL.from_pretrained("runwayml/stable-diffusion-v1-5", subfolder = "vae") #vae is the same for different versions of stable diffusion
-        self.finetuned_vaes = self._build_finetuned_vae_decoder(params.num_keys)   ##requires_grad = True
+        self.finetuned_vaes = self._build_finetuned_vae(params.num_keys)   ##requires_grad = True
         self._freeze()
         self.msg_decoder = self._load_msg_decoder(params)
         self._to(self.device)
@@ -105,11 +103,12 @@ class Trainer():
                                    
         ##loss function
         self.loss_w, self.loss_i = self._loss_fn(params)
+
     
     def _generate_key(self, num_keys: int, num_bits: int) -> list[list]:
 
         """
-        generate watermark keys based before set the random seed.
+        generate watermark keys before set the random seed.
         """        
         watermark_keys = []
         for _ in range(num_keys):
@@ -179,7 +178,7 @@ class Trainer():
             if name[0].isupper() and not name.startswith("__")
             and callable(torch.optim.__dict__[name]))
         if hasattr(torch.optim, optimizer):
-            return getattr(torch.optim, optimizer)(self.finetuned_vae_decoders[i].parameters(), **optim_params)
+            return getattr(torch.optim, optimizer)(self.finetuned_vaes[i].parameters(), **optim_params)
         raise ValueError(f'Unknown optimizer "{optimizer}", choose among {str(torch_optimizers)}')
     
     def _loss_fn(self, params):
@@ -188,8 +187,8 @@ class Trainer():
         get loss function, the loss function and weights copy from https://github.com/SteffenCzolbe/PerceptualSimilarity
         """
 
-        print(f'>>> Creating losses...')
-        print(f'Losses: {params.loss_w} and {params.loss_i}...')
+        print(f'>>> Creating losses')
+        print(f'Losses: {params.loss_w} and {params.loss_i}')
         if params.loss_w == 'mse':        
             loss_w = lambda decoded, keys, temp = 10.0: torch.mean((decoded * temp - (2 * keys- 1))**2) # b k - b k
         elif params.loss_w == 'bce':
@@ -222,15 +221,15 @@ class Trainer():
     def _to(self, device: str):
 
         self.vae.to(device)
-        for decoder in self.finetuned_vaes:
-            decoder.to(device)
+        for vae in self.finetuned_vaes:
+            vae.to(device)
         self.msg_decoder.to(device)
         
     def _train_per_key(
                        self,
                        params,
                        key: list[int],
-                       decoder: nn.Module,
+                       vae: AutoencoderKL,
                        optimizer: torch.optim.Optimizer, 
                        vqgan_to_imnet: transforms) -> dict:
 
@@ -238,10 +237,10 @@ class Trainer():
         fine_tune vae decoder for one watermark key
         """
         key = data_utils.list_to_torch(key)
-        header = 'Train'
-        metric_logger = MetricLogger(delimiter="  ")
-        decoder.train()
-        for step, imgs in enumerate(metric_logger.log_every(self.train_loader, params.log_freq, header)):
+        #header = 'Train'
+        metric_logger = MetricLogger(delimiter = '\n', window_size = params.log_freq)
+        vae.train()
+        for step, imgs in enumerate(self.train_loader):
             imgs = imgs.to(self.device)
             keys = key.repeat(imgs.shape[0], 1).to(self.device)
         
@@ -251,7 +250,7 @@ class Trainer():
 
             # decode latents with original and finetuned decoder
             imgs_d0 = self.vae.decode(imgs_z).sample # b z h/f w/f -> b c h w
-            imgs_w = decoder.decode(imgs_z).sample # b z h/f w/f -> b c h w
+            imgs_w = vae.decode(imgs_z).sample # b z h/f w/f -> b c h w
 
             # extract watermark
             decoded = self.msg_decoder(vqgan_to_imnet(imgs_w)) # b c h w -> b k
@@ -271,50 +270,50 @@ class Trainer():
             bit_accs = torch.sum(diff, dim=-1) / diff.shape[-1] # b k -> b
             word_accs = (bit_accs == 1) # b
             log_stats = {
-                "iteration": step,
                 "loss": loss.item(),
                 "loss_w": lossw.item(),
                 "loss_i": lossi.item(),
-                "psnr": data_utils.psnr(imgs_w, imgs_d0).mean().item(),
+                #"psnr": data_utils.psnr(imgs_w, imgs_d0).mean().item(),
                 # "psnr_ori": utils_img.psnr(imgs_w, imgs).mean().item(),
                 "bit_acc_avg": torch.mean(bit_accs).item(),
                 "word_acc_avg": torch.mean(word_accs.type(torch.float)).item(),
-                "lr": optimizer.param_groups[0]["lr"],
+                #"lr": optimizer.param_groups[0]["lr"],
                 }
-            for name, loss in log_stats.items():
-                metric_logger.update(**{name:loss})
+            for name, meter in log_stats.items():
+                metric_logger.update(**{name: meter})
             if (step + 1) % params.log_freq == 0:
-                print(json.dumps(log_stats))
+                print(f'Step {step + 1} | {params.steps}')
+                for name, meter in metric_logger.meters.items():
+                    print(f"    {name}: {meter.avg}")
         
-        print("Averaged {} stats:".format('train'), metric_logger)
+        print(f"Final train stats: the value in () indicates the averaged stats")
+        print(metric_logger)
         return {k: meter.global_avg for k, meter in metric_logger.meters.items()}        
 
     @torch.no_grad()
     def _evaluate(
                 self,
-                params,
                 key: list[int],
-                decoder: nn.Module,
+                vae: AutoencoderKL,
                 vqgan_to_imnet: transforms
                 ) -> dict:
         
-        header = 'Eval'
-        metric_logger = MetricLogger(delimiter="  ")
+        metric_logger = MetricLogger(delimiter = "\n", fmt = "{global_avg:4f}")
         key = data_utils.list_to_torch(key)
-        decoder.eval()
-        for step, imgs in enumerate(metric_logger.log_every(self.val_loader, params.log_freq, header)):
+        vae.eval()
+        for imgs in tqdm.tqdm(self.val_loader):
         
             imgs = imgs.to(self.device)
 
             imgs_z = self.vae.encode(imgs).latent_dist.sample() # b c h w -> b z h/f w/f
 
             imgs_d0 = self.vae.decode(imgs_z).sample# b z h/f w/f -> b c h w
-            imgs_w = decoder.decode(imgs_z).sample # b z h/f w/f -> b c h w
+            imgs_w = vae.decode(imgs_z).sample # b z h/f w/f -> b c h w
         
             keys = key.repeat(imgs.shape[0], 1).to(self.device)
 
             log_stats = {
-                "iteration": step + 1,
+                #"iteration": step + 1,
                 "psnr": data_utils.psnr(imgs_w, imgs_d0).mean().item(),
                 # "psnr_ori": utils_img.psnr(imgs_w, imgs).mean().item(),
             }
@@ -340,38 +339,37 @@ class Trainer():
                 word_accs = (bit_accs == 1) # b
                 log_stats[f'bit_acc_{name}'] = torch.mean(bit_accs).item()
                 log_stats[f'word_acc_{name}'] = torch.mean(word_accs.type(torch.float)).item()
-            for name, loss in log_stats.items():
-                metric_logger.update(**{name:loss})
-                print("Averaged {} stats:".format('eval'), metric_logger)
+            for name, meter in log_stats.items():
+                metric_logger.update(**{name: meter})
             
-            return {k: meter.global_avg for k, meter in metric_logger.meters.items()}
+        print("Averaged eval stats")
+        print(metric_logger)
+            
+        return {k: meter.global_avg for k, meter in metric_logger.meters.items()}
         
     def _save(self, index: int, **kargs) -> None:
 
-
+        writer = OutputWriter(self.log_file)
         watermark_key = data_utils.list_to_str(self.watermark_key[index])
-        train_stats = kargs['train_stats']
-        val_stats = kargs['val_stats']
-
-        log_stats = {'key': watermark_key,
-                **{f'train_{k}': v for k, v in train_stats.items()},
-                **{f'val_{k}': v for k, v in val_stats.items()},
-            }
-        torch.save(self.finetuned_vaes[index].state_dict(), os.path.join(self.model_dir, f"checkpoint_{index:03d}.pth"))
-        with (Path(self.output_dir) / "log.txt").open("a") as f:
-            f.write(json.dumps(log_stats) + "\n")
-        with (Path(self.output_dir) / "keys.txt").open("a") as f:
-            f.write(os.path.join(self.model_dir, f"checkpoint_{index:03d}.pth") + "\t" + watermark_key + "\n")
-       
+        model_path = os.path.join(self.model_dir, f"checkpoint_{index:03d}.pth")
+        metadata = {'key': watermark_key,
+                    'saved_path': model_path,
+                    'train_stats': {**{f'train_{k}': v for k, v in kargs['train_stats'].items()}},
+                    'val_stats': {**{f'val_{k}': v for k, v in kargs['val_stats'].items()}},
+                    }
+        log_metadata = {f'Finetuned VAE {index + 1}': metadata}
+        torch.save(self.finetuned_vaes[index].state_dict(), model_path)
+        writer.write_dict(log_metadata)
     
     def train(self) -> None:
         
         for i in range(len(self.watermark_key)):
-            print(f'>>> Training...')
+            print(f'>>> Training for {i + 1}-th Watermark Key')
             train_stats =  self._train_per_key(self.params, self.watermark_key[i], self.finetuned_vaes[i],
                                                 self.optimizers[i], data_utils.vqgan_to_imnet())
-            val_stats = self._evaluate(self.params, self.watermark_key[i], self.finetuned_vaes[i],
-                                                                    data_utils.vqgan_to_imnet())
+            print(f'>>> Evaluation for {i + 1}-th Watermark Key')
+            val_stats = self._evaluate(self.watermark_key[i], self.finetuned_vaes[i],
+                                                                data_utils.vqgan_to_imnet())
             self._save(i, train_stats = train_stats, val_stats = val_stats)
 
     @property

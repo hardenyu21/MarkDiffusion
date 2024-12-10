@@ -31,5 +31,6 @@ save_img_freq: 1000          # Frequency of saving generated images (in steps)
 # Experiment parameters
 num_keys: 1                  # Number of fine-tuned checkpoints to generate
 output_dir: "output/finetune_vae"        # Output directory for logs and watermark keys
+log_file: "log.txt"                      # log file under output dir
 model_dir: "ckpts/finetune_vae"          # Output directory for ckpts
 seed: 42                     # Random seed
