@@ -84,28 +84,29 @@ class OutputWriter():
 
     def __init__(self, log_file: str):
         self.log_file = log_file
-    
-    def _log(self, info: str):
 
+    def _log(self, info: str):
         with open(self.log_file, 'a') as f:
             f.write(info)
     
     def _write(self, data, level):
         if isinstance(data, dict):
             for key, value in data.items():
-                if level == 0:
+                if level == 0:  
                     self._log(f'{key}: ')  
                 else:
                     self._log('\n' + '    ' * level + f'{key}: ')
                 self._write(value, level + 1)  
         elif isinstance(data, list):
             for item in data:
-                self._log('\n' + '    ' * level + '- ' + str(item)) 
+                self._log('\n' + '    ' * level + '- ' + str(item))  
         else:
-            self._log(str(data))
+            self._log(str(data))  
+
 
     def write_dict(self, data, level=0):
         self._write(data, level)
+        self._log('\n')
 
 
 """

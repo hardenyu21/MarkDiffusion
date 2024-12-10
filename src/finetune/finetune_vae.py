@@ -80,6 +80,7 @@ class Trainer():
         if not os.path.exists(self.model_dir):
             os.makedirs(self.model_dir)
         self.log_file = os.path.join(self.output_dir, params.log_file)
+        self.writer = OutputWriter(self.log_file)
         #generate key before sed seed
         self.watermark_key = self._generate_key(params.num_keys, params.num_bits)
         #set seed
@@ -113,7 +114,7 @@ class Trainer():
         watermark_keys = []
         for _ in range(num_keys):
             bits = random.choices([0, 1], k = num_bits)
-        watermark_keys.append(bits)
+            watermark_keys.append(bits)
         return watermark_keys
     
     def _seed_all(self, seed: int) -> None:
@@ -246,7 +247,7 @@ class Trainer():
         
             adjust_learning_rate(optimizer, step, params.steps, params.warmup_steps, params.lr)
             # encode images
-            imgs_z = self.vae.encode(imgs).latent_dist.sample() # b c h w -> b z h/f w/f
+            imgs_z = self.vae.encode(imgs).latent_dist.mode() # b c h w -> b z h/f w/f
 
             # decode latents with original and finetuned decoder
             imgs_d0 = self.vae.decode(imgs_z).sample # b z h/f w/f -> b c h w
@@ -305,9 +306,9 @@ class Trainer():
         
             imgs = imgs.to(self.device)
 
-            imgs_z = self.vae.encode(imgs).latent_dist.sample() # b c h w -> b z h/f w/f
+            imgs_z = self.vae.encode(imgs).latent_dist.mode() # b c h w -> b z h/f w/f
 
-            imgs_d0 = self.vae.decode(imgs_z).sample# b z h/f w/f -> b c h w
+            imgs_d0 = self.vae.decode(imgs_z).sample # b z h/f w/f -> b c h w
             imgs_w = vae.decode(imgs_z).sample # b z h/f w/f -> b c h w
         
             keys = key.repeat(imgs.shape[0], 1).to(self.device)
@@ -349,7 +350,6 @@ class Trainer():
         
     def _save(self, index: int, **kargs) -> None:
 
-        writer = OutputWriter(self.log_file)
         watermark_key = data_utils.list_to_str(self.watermark_key[index])
         model_path = os.path.join(self.model_dir, f"checkpoint_{index:03d}.pth")
         metadata = {'key': watermark_key,
@@ -359,7 +359,7 @@ class Trainer():
                     }
         log_metadata = {f'Finetuned VAE {index + 1}': metadata}
         torch.save(self.finetuned_vaes[index].state_dict(), model_path)
-        writer.write_dict(log_metadata)
+        self.writer.write_dict(log_metadata)
     
     def train(self) -> None:
         

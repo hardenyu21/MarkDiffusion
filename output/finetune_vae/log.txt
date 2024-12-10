@@ -1,30 +1,58 @@
-
 Finetuned VAE 1: 
-    key: 010111100001011110010000110011101011101011000010
+    key: 101111000100000111000101101100000011001011101001
     saved_path: /hpc2hdd/home/yhuang489/MarkDiffusion/ckpts/finetune_vae/checkpoint_000.pth
     train_stats: 
-        train_loss: 0.5630379584431648
-        train_loss_w: 0.10097635845653713
-        train_loss_i: 2.3103079756780427
-        train_bit_acc_avg: 0.9695833450555802
-        train_word_acc_avg: 0.745
+        train_loss: 0.5769974288344383
+        train_loss_w: 0.11495312210172415
+        train_loss_i: 2.310221515404992
+        train_bit_acc_avg: 0.9713021004199982
+        train_word_acc_avg: 0.6
     val_stats: 
-        val_psnr: 30.740276458740233
-        val_bit_acc_none: 0.9950625100135804
-        val_word_acc_none: 0.863
-        val_bit_acc_crop_01: 0.9766458511352539
-        val_word_acc_crop_01: 0.673
-        val_bit_acc_crop_05: 0.9946041774749755
-        val_word_acc_crop_05: 0.861
-        val_bit_acc_rot_25: 0.6964583532810211
+        val_psnr: 31.10550148010254
+        val_bit_acc_none: 0.9947500123977661
+        val_word_acc_none: 0.811
+        val_bit_acc_crop_01: 0.9705625212192536
+        val_word_acc_crop_01: 0.46
+        val_bit_acc_crop_05: 0.9921666820049286
+        val_word_acc_crop_05: 0.739
+        val_bit_acc_rot_25: 0.560583353638649
         val_word_acc_rot_25: 0.0
-        val_bit_acc_rot_90: 0.49289585041999817
+        val_bit_acc_rot_90: 0.4272916783094406
         val_word_acc_rot_90: 0.0
-        val_bit_acc_resize_03: 0.751000018119812
+        val_bit_acc_resize_03: 0.6789166870117187
         val_word_acc_resize_03: 0.0
-        val_bit_acc_resize_07: 0.9836041862964631
-        val_word_acc_resize_07: 0.597
-        val_bit_acc_brightness_1p5: 0.9932291796207428
-        val_word_acc_brightness_1p5: 0.795
-        val_bit_acc_brightness_2: 0.983291686296463
-        val_word_acc_brightness_2: 0.55
+        val_bit_acc_resize_07: 0.9769583542346955
+        val_word_acc_resize_07: 0.372
+        val_bit_acc_brightness_1p5: 0.9927708473205566
+        val_word_acc_brightness_1p5: 0.769
+        val_bit_acc_brightness_2: 0.9859583535194397
+        val_word_acc_brightness_2: 0.597
+Finetuned VAE 2: 
+    key: 110110011110101100010010000000101000100110010110
+    saved_path: /hpc2hdd/home/yhuang489/MarkDiffusion/ckpts/finetune_vae/checkpoint_001.pth
+    train_stats: 
+        train_loss: 0.5651705086231231
+        train_loss_w: 0.110143738463521
+        train_loss_i: 2.275133826280944
+        train_bit_acc_avg: 0.9660416793823242
+        train_word_acc_avg: 0.68
+    val_stats: 
+        val_psnr: 31.38364153289795
+        val_bit_acc_none: 0.9935833456516265
+        val_word_acc_none: 0.822
+        val_bit_acc_crop_01: 0.9718750183582305
+        val_word_acc_crop_01: 0.586
+        val_bit_acc_crop_05: 0.9926875112056732
+        val_word_acc_crop_05: 0.819
+        val_bit_acc_rot_25: 0.6196666872501373
+        val_word_acc_rot_25: 0.0
+        val_bit_acc_rot_90: 0.4436250116825104
+        val_word_acc_rot_90: 0.0
+        val_bit_acc_resize_03: 0.7331875212192536
+        val_word_acc_resize_03: 0.0
+        val_bit_acc_resize_07: 0.9824583528041839
+        val_word_acc_resize_07: 0.61
+        val_bit_acc_brightness_1p5: 0.9918333461284637
+        val_word_acc_brightness_1p5: 0.784
+        val_bit_acc_brightness_2: 0.9800833520889283
+        val_word_acc_brightness_2: 0.58

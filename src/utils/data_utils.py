@@ -7,7 +7,7 @@ from torchvision import transforms
 from torchvision.datasets.folder import is_image_file, default_loader
 #import json
 import functools
-from augly.image import functional as aug_functional
+#from augly.image import functional as aug_functional
 from torchvision.transforms import functional
 
 
@@ -176,16 +176,17 @@ def adjust_sharpness(x, sharpness_factor):
     """
     return normalize_img(functional.adjust_sharpness(unnormalize_img(x), sharpness_factor))
 
+"""
 def overlay_text(x, text='Lorem Ipsum'):
-    """ Overlay text on image
-    Args:
-        x: PIL image
-        text: text to overlay
-        font_path: path to font
-        font_size: font size
-        color: text color
-        position: text position
-    """
+    #Overlay text on image
+    #Args:
+    #    x: PIL image
+    #    text: text to overlay
+    #    font_path: path to font
+    #    font_size: font size
+    #    color: text color
+    #    position: text position
+    
     to_pil = transforms.ToPILImage()
     to_tensor = transforms.ToTensor()
     img_aug = torch.zeros_like(x, device=x.device)
@@ -195,11 +196,11 @@ def overlay_text(x, text='Lorem Ipsum'):
     return normalize_img(img_aug)
 
 def jpeg_compress(x, quality_factor):
-    """ Apply jpeg compression to image
-    Args:
-        x: PIL image
-        quality_factor: quality factor
-    """
+    #Apply jpeg compression to image
+    #Args:
+    #    x: PIL image
+    #    quality_factor: quality factor
+    
     to_pil = transforms.ToPILImage()
     to_tensor = transforms.ToTensor()
     img_aug = torch.zeros_like(x, device=x.device)
@@ -208,6 +209,8 @@ def jpeg_compress(x, quality_factor):
         img_aug[ii] = to_tensor(aug_functional.encoding_quality(pil_img, quality=quality_factor))
     return normalize_img(img_aug)
 
+"""
+    
 class COCODataset(Dataset):
 
     """
