@@ -1,4 +1,4 @@
-## some links for paper:
+## WaterMark for Diffusion Models:
 [Stable Signature](https://openaccess.thecvf.com/content/ICCV2023/papers/Fernandez_The_Stable_Signature_Rooting_Watermarks_in_Latent_Diffusion_Models_ICCV_2023_paper.pdf)
 
 ## Video Generation Models:
@@ -9,3 +9,5 @@
 - [ ] [Show-One](https://arxiv.org/pdf/2309.15818)
 - [ ] [PixelDance](https://openaccess.thecvf.com/content/CVPR2024/papers/Zeng_Make_Pixels_Dance_High-Dynamic_Video_Generation_CVPR_2024_paper.pdf)
 - [ ] [SVD](https://arxiv.org/pdf/2311.15127)
+- [ ] [VideoLCM](https://arxiv.org/pdf/2312.09109)
+- [ ] [VideoCrafter](https://openaccess.thecvf.com/content/CVPR2024/papers/Chen_VideoCrafter2_Overcoming_Data_Limitations_for_High-Quality_Video_Diffusion_Models_CVPR_2024_paper.pdf)
