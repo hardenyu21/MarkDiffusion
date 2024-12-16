@@ -1,1 +1,0 @@
-/hpc2hdd/home/yhuang489/MarkDiffusion/ckpts/finetune_vae/checkpoint_000.pth	001010100101001111100101000101111100010110001111
