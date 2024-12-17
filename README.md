@@ -1,5 +1,8 @@
 ## WaterMark for Diffusion Models:
 [Stable Signature](https://openaccess.thecvf.com/content/ICCV2023/papers/Fernandez_The_Stable_Signature_Rooting_Watermarks_in_Latent_Diffusion_Models_ICCV_2023_paper.pdf)
+[Tree-Rings](https://proceedings.neurips.cc/paper_files/paper/2023/file/b54d1757c190ba20dbc4f9e4a2f54149-Paper-Conference.pdf)
+[Lawa](https://arxiv.org/pdf/2408.05868) 
+[Gaussian Shading](https://openaccess.thecvf.com/content/CVPR2024/papers/Yang_Gaussian_Shading_Provable_Performance-Lossless_Image_Watermarking_for_Diffusion_Models_CVPR_2024_paper.pdf)
 
 ## Video Generation Models:
 
