@@ -4,7 +4,7 @@ from diffusers.models import AutoencoderKL
 from torch import nn
 from torchvision import transforms
 from PIL import Image
-from src.utils.data_utils import torch_to_str
+from src.utils.data_utils import torch_to_str, default_transform
 import torch
         
 
@@ -34,10 +34,7 @@ class WaterMarkedStableDiffusionPipeline():
         >>> images = WPipeline("A sunny beach")
     """
 
-    transform= transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.5, 0.5, 0.5], 
-                                           std=[0.5, 0.5, 0.5])])
+    transform= default_transform()
 
     def __init__(self,
                  model_card: str,
@@ -45,6 +42,7 @@ class WaterMarkedStableDiffusionPipeline():
                  ):
         
         self.pipeline = StableDiffusionPipeline.from_pretrained(model_card)
+        self.method = method
 
         if method == 'SS':
                  

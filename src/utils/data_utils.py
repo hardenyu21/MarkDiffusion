@@ -1,15 +1,22 @@
 import os
+import sys
+sys.path.append(os.getcwd())
 import numpy as np
 import torch
+import json, random
+import cv2
+import pandas as pd
 from typing import List, Any
 from torch.utils.data import Dataset, Subset, DataLoader
 from torchvision import transforms
 from torchvision.datasets.folder import is_image_file, default_loader
 #import json
 import functools
+from PIL import Image
 #from augly.image import functional as aug_functional
 from torchvision.transforms import functional
-
+from collections import defaultdict
+from src.utils.param_utils import seed_all
 
 normalize_img = transforms.Normalize(mean=[0.485, 0.456, 0.406], 
                                          std=[0.229, 0.224, 0.225]) # Normalize (x - mean) / std
@@ -270,14 +277,126 @@ def get_dataloader(data_dir: str,
                       num_workers = num_workers, collate_fn = collate_fn)
 
 
-if __name__ == '__main__':
+@functools.lru_cache()
+def read_metadata(path) -> pd.DataFrame:
+    return pd.read_csv(path)
+
+class SubOpenVid(Dataset):
+
+    """OpenVid Dataset"""
+    
+    def __init__(self,
+                 metadata_path: str,
+                 data_dir: str,
+                 max_frames: int,
+                 frame_interval: int,
+                 transform: transforms = None) -> None:
+        
+        self.metadata = read_metadata(metadata_path)
+        if transform:
+            self.transform = transform
+        self.max_frames = max_frames
+        self.frame_interval = frame_interval
+        self.videos = self._get_video_paths(data_dir)
 
 
+    @functools.lru_cache()
+    def _get_video_paths(self, path:str):
+        """
+        get the image paths, filter the videos that cannot be sampled in condition of "max_frames" and "interval"
+        """
+        self.metadata.set_index('video', inplace=True)
+        paths = []
+        for current_path, _, files in os.walk(path):
+
+            for filename in files:
+                if filename.endswith(('.mp4', '.avi', '.mov')): 
+                    full_path = os.path.join(current_path, filename)
+                    video_name = os.path.basename(filename)
+                    frame_count = self.metadata.at[video_name, 'frame']
+                    if frame_count >= (self.max_frames - 1) * self.frame_interval + 1:  
+                        paths.append(full_path)
+        self.metadata.reset_index(inplace=True)
+        return sorted(paths)
+    
+    def read_video_frames(self, video_path: str) -> torch.Tensor:
    
-    loader = get_dataloader("/hpc2hdd/home/yhuang489/MSCOCO/val2017", 
-                            transform = img_transform(256), num_imgs = 100, 
-                            collate_fn=None)
+        cap = cv2.VideoCapture(video_path)
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))  
 
+        sampled_indices = np.arange(0, total_frames, self.frame_interval)[:self.max_frames]  
+        frames = []
+
+        for frame_id in sampled_indices:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_id) 
+            ret, frame = cap.read()
+            if not ret:
+                break  
+
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  
+            frame = Image.fromarray(frame)
+            if self.transform:
+                frame = self.transform(frame)  
+        
+            frames.append(frame)
+
+        cap.release()
+
+        return torch.stack(frames)  # (max_frames, C, H, W)
+    
+    def __getitem__(self, index: int) -> Any:
+        assert 0 <= index < len(self), "invalid index"
+        frames = self.read_video_frames(self.videos[index])
+
+        return frames
+
+    def __len__(self) -> int:
+
+        return len(self.videos)
+
+
+def get_video_dataloader(
+                        metadata_path: str,
+                        data_dir: str, 
+                        max_frames: int,
+                        frame_interval: int,
+                        transform: transforms, 
+                        num_videos: int = None, 
+                        batch_size: int = 1,
+                        num_workers: int = 4,
+                        shuffle: bool = False, 
+                        collate_fn: Any = collate_fn):
+    
+    """ Get dataloader"""
+    dataset = SubOpenVid(metadata_path, data_dir, max_frames, frame_interval, transform)
+    if num_videos is not None:
+        assert num_videos < len(dataset)
+        dataset = Subset(dataset, np.random.choice(len(dataset), num_videos, replace=False))
+
+    return DataLoader(dataset, batch_size = batch_size, shuffle = shuffle, 
+                      num_workers = num_workers, collate_fn = collate_fn)
+
+if __name__ == "__main__":
+
+    print('testing')
+
+    metadata_path = '/hpc2hdd/home/yhuang489/OpenVid/data/train/OpenVid-1M.csv'
+    data_dir = '/hpc2hdd/home/yhuang489/OpenVid/eval'
+    max_frames = 30
+    frame_interval = 1
+    transform = vqgan_transform(img_size = 512)
+    num_videos = 10
+
+    print("build loader")
+    loader = get_video_dataloader(metadata_path,
+                                  data_dir,
+                                  max_frames,
+                                  frame_interval,
+                                  transform,
+                                  num_videos,
+                                  collate_fn=None)
+    print("done")
+    
     for x in loader:
         print(x.shape)
         break

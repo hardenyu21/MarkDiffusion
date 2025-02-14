@@ -1,8 +1,9 @@
 # Data parameters
-
-train_dir: "/hpc2hdd/home/yhuang489/MSCOCO/train2017"  # Path to the training data directory
-val_dir: "/hpc2hdd/home/yhuang489/MSCOCO/val2017"      # Path to the validation data directory
-num_val: 1000            # number of images for validation
+metadata_path: '/hpc2hdd/home/yhuang489/OpenVid/data/train/OpenVid-1M.csv' # Path to the metadata
+train_dir: "/hpc2hdd/home/yhuang489/OpenVid/train"  # Path to the training data directory
+val_dir: "/hpc2hdd/home/yhuang489/OpenVid/eval"      # Path to the validation data directory
+num_train: 200          # number of videos for train
+num_val: 250            # number of videos for validation
 
 # Model parameters
 msg_decoder_path: "ckpts/msg_decoder/dec_48b_whit.torchscript.pt"  # Path to the hidden decoder for the watermarking model
@@ -12,7 +13,9 @@ decoder_depth: 8             # Depth of the decoder in the watermarking model
 decoder_channels: 64         # Number of channels in the decoder of the watermarking model
 
 # Training parameters
-batch_size: 4                # Batch size for training
+batch_size: 1                # Batch size for training, it's recommended to fix this parameter to 1
+max_frames: 4                # Frames for each video
+frame_interval: 4            # Frame interval for sampleing
 img_size: 512                # Resize images to this size
 loss_i: "watson-vgg"         # Type of loss for the image loss. Can be watson-vgg, mse, watson-dft, etc.
 loss_w: "bce"                # Type of loss for the watermark loss. Can be mse or bce.
@@ -21,16 +24,15 @@ lambda_w: 1.0                # Weight of the watermark loss in the total loss
 optimizer: "AdamW"           # Optimizer
 lr: 5e-4                     # Learning rate
 weight_decay: 5e-5           # Weight decay
-steps: 100                   # Number of steps to train the model for
-warmup_steps: 20             # Number of warmup steps for the optimizer
+#steps: 100                   # Number of steps to train the model for
+#warmup_steps: 20             # Number of warmup steps for the optimizer
 
 # Logging and saving frequency parameters
 log_freq: 10                 # Logging frequency (in steps)
-save_img_freq: 1000          # Frequency of saving generated images (in steps)
 
 # Experiment parameters
-num_keys: 2                  # Number of fine-tuned checkpoints to generate
-output_dir: "output/finetune_vae"        # Output directory for logs and watermark keys
+num_keys: 1                  # Number of fine-tuned checkpoints to generate
+output_dir: "output/ss_train"        # Output directory for logs and watermark keys
 log_file: "log.txt"                      # log file under output dir
-model_dir: "ckpts/finetune_vae"          # Output directory for ckpts
+model_dir: "ckpts/ss_train"          # Output directory for ckpts
 seed: 42                     # Random seed
